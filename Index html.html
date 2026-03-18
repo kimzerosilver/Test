@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Book Viewer - Three.js</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f0f0f0; }
+        canvas { display: block; }
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: sans-serif;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="instructions">마우스로 드래그하여 회전, 휠로 확대/축소</div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // 1. 기본 설정 (Scene, Camera, Renderer)
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf5f5f5);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(4, 3, 6); // 책이 잘 보이는 대각선 위치
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true; // 그림자 활성화
+    document.body.appendChild(renderer.domElement);
+
+    // 2. 조명 (Lighting)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 2.0); // 전체적인 밝기
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    directionalLight.position.set(5, 10, 7);
+    directionalLight.castShadow = true;
+    // 그림자 품질 설정
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    scene.add(directionalLight);
+
+    // 3. 텍스처 로더
+    const loader = new THREE.TextureLoader();
+    
+    // 텍스처 로드 (경로: 동일 폴더)
+    const frontTex = loader.load('front.jpg');
+    const backTex = loader.load('back.jpg');
+    const spineTex = loader.load('spine.jpg');
+
+    // 텍스처 선명도 향상 (Anisotropy)
+    [frontTex, backTex, spineTex].forEach(tex => {
+        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    });
+
+    // 4. 책 생성 (BoxGeometry)
+    // 판형 비율: 220(W) x 280(H) x 35(D) -> 단위를 미터로 환산(2.2, 2.8, 0.35)
+    const width = 2.2;
+    const height = 2.8;
+    const depth = 0.35;
+    const geometry = new THREE.BoxGeometry(width, height, depth);
+
+    /**
+     * Material Index 순서 (Three.js 표준)
+     * 0: 오른쪽 (+X) - 책배 (Book Edge)
+     * 1: 왼쪽 (-X) - 세네카 (Spine)
+     * 2: 위 (+Y)
+     * 3: 아래 (-Y)
+     * 4: 앞 (+Z) - 앞표지 (Front)
+     * 5: 뒤 (-Z) - 뒤표지 (Back)
+     */
+    const materials = [
+        new THREE.MeshLambertMaterial({ color: 0xd9d9d9 }), // 0: Right (Edge)
+        new THREE.MeshLambertMaterial({ map: spineTex }),   // 1: Left (Spine)
+        new THREE.MeshLambertMaterial({ color: 0xeeeeee }), // 2: Top
+        new THREE.MeshLambertMaterial({ color: 0xeeeeee }), // 3: Bottom
+        new THREE.MeshLambertMaterial({ map: frontTex }),   // 4: Front
+        new THREE.MeshLambertMaterial({ map: backTex })     // 5: Back
+    ];
+
+    const book = new THREE.Mesh(geometry, materials);
+    book.castShadow = true;
+    scene.add(book);
+
+    // 6. 컨트롤 (OrbitControls)
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; // 관성 효과
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 2;      // 최소 줌
+    controls.maxDistance = 10;     // 최대 줌
+
+    // 7. 반응형 대응 (Window Resize)
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // 8. 애니메이션 루프
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update(); // 관성 적용을 위해 매 프레임 업데이트
+        renderer.render(scene, camera);
+    }
+
+    animate();
+</script>
+
+</body>
+</html>
